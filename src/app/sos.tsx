@@ -49,6 +49,9 @@ export default function SOSScreen() {
 
     // Function to fetch GPS coordinates and trigger SMS/Clipboard fallback
     const handleSendEmergencySMS = async () => {
+        // Prevent concurrent triggers
+        if (loadingLocation) return;
+
         try {
             setLoadingLocation(true);
 
@@ -65,13 +68,13 @@ export default function SOSScreen() {
                     return;
                 }
 
-                // 2. Fetch current GPS position with a 6-second timeout
+                // 2. Fetch current GPS position with a 4-second timeout to prevent hanging
                 const locationPromise = Location.getCurrentPositionAsync({
                     accuracy: Location.Accuracy.Balanced,
                 });
 
                 const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('GPS timeout')), 6000)
+                    setTimeout(() => reject(new Error('GPS timeout')), 4000)
                 );
 
                 try {
@@ -87,7 +90,7 @@ export default function SOSScreen() {
                 if (navigator.geolocation) {
                     try {
                         const pos: any = await new Promise((resolve, reject) =>
-                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 })
                         );
                         latitude = pos.coords.latitude;
                         longitude = pos.coords.longitude;
@@ -96,14 +99,15 @@ export default function SOSScreen() {
                 }
             }
 
-            setLoadingLocation(false);
-
             const googleMapsLink = `https://www.google.com/maps?q=${latitude},${longitude}`;
             const messageBody = hasGPS
                 ? `EMERGENCY! I am stranded in the terrain and need help. My exact GPS coordinates are: Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}. Map link: ${googleMapsLink}`
                 : `EMERGENCY! I am stranded in the terrain and need help. GPS fix timed out, check last known area.`;
 
             const emergencyNumber = '01942452254';
+
+            // Reset loading state immediately before triggering platform actions/alerts
+            setLoadingLocation(false);
 
             // If running on web preview, directly copy to clipboard since browsers block sms: URIs
             if (Platform.OS === 'web') {
@@ -132,15 +136,24 @@ export default function SOSScreen() {
                         text: 'Open SMS App',
                         style: 'destructive',
                         onPress: async () => {
-                            const supported = await Linking.canOpenURL(smsUrl);
-                            if (supported) {
-                                await Linking.openURL(smsUrl);
-                            } else {
-                                const isAvailable = await SMS.isAvailableAsync();
-                                if (isAvailable) {
-                                    await SMS.sendSMSAsync([emergencyNumber], messageBody);
+                            try {
+                                const supported = await Linking.canOpenURL(smsUrl);
+                                if (supported) {
+                                    await Linking.openURL(smsUrl);
                                 } else {
-                                    Alert.alert('Error', 'SMS composer could not be opened on this device.');
+                                    const isAvailable = await SMS.isAvailableAsync();
+                                    if (isAvailable) {
+                                        await SMS.sendSMSAsync([emergencyNumber], messageBody);
+                                    } else {
+                                        Alert.alert('Error', 'SMS composer could not be opened on this device.');
+                                    }
+                                }
+                            } catch (linkErr) {
+                                // Ultimate fallback to expo-sms if linking fails
+                                try {
+                                    await SMS.sendSMSAsync([emergencyNumber], messageBody);
+                                } catch (smsErr) {
+                                    Alert.alert('Error', 'Could not open messaging application.');
                                 }
                             }
                         },
