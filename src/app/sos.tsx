@@ -47,9 +47,8 @@ export default function SOSScreen() {
         }
     };
 
-    // Function to fetch GPS coordinates and trigger SMS/Clipboard fallback
+    // Function to fetch GPS coordinates and open native SMS app prefilled via expo-sms
     const handleSendEmergencySMS = async () => {
-        // Prevent concurrent triggers
         if (loadingLocation) return;
 
         try {
@@ -60,7 +59,7 @@ export default function SOSScreen() {
             let hasGPS = false;
 
             if (Platform.OS !== 'web') {
-                // 1. Request location permissions on mobile native
+                // 1. Request foreground location permissions
                 let { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== 'granted') {
                     Alert.alert('Permission Denied', 'Location permission is required to send your GPS coordinates.');
@@ -86,7 +85,6 @@ export default function SOSScreen() {
                     // Fallback to default coordinates if GPS takes too long
                 }
             } else {
-                // Simulating web preview geolocation if available
                 if (navigator.geolocation) {
                     try {
                         const pos: any = await new Promise((resolve, reject) =>
@@ -106,16 +104,16 @@ export default function SOSScreen() {
 
             const emergencyNumber = '01942452254';
 
-            // Reset loading state immediately before triggering platform actions/alerts
+            // Reset loading state immediately before presenting UI actions
             setLoadingLocation(false);
 
-            // If running on web preview, directly copy to clipboard since browsers block sms: URIs
+            // Web preview clipboard handler fallback
             if (Platform.OS === 'web') {
                 if (navigator.clipboard) {
                     await navigator.clipboard.writeText(messageBody);
                     Alert.alert(
                         'Web Preview Mode (SMS Copied)',
-                        `Browsers cannot send direct cellular texts. Your distress text for ${emergencyNumber} has been copied to your clipboard!`
+                        `Browsers cannot launch SMS apps. Your distress text for ${emergencyNumber} has been copied to your clipboard!`
                     );
                 } else {
                     alert(`Emergency Message:\n\n${messageBody}`);
@@ -123,43 +121,21 @@ export default function SOSScreen() {
                 return;
             }
 
-            const separator = Platform.OS === 'ios' ? '&' : '?';
-            const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
-
-            // 3. Prompt user and open pre-filled SMS composer on native mobile
-            Alert.alert(
-                'Send Emergency SMS',
-                '112 is a voice-only helpline and cannot receive texts. Do you want to open your messaging app pre-filled with your coordinates for the wildlife control room (01942452254)?',
-                [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                        text: 'Open SMS App',
-                        style: 'destructive',
-                        onPress: async () => {
-                            try {
-                                const supported = await Linking.canOpenURL(smsUrl);
-                                if (supported) {
-                                    await Linking.openURL(smsUrl);
-                                } else {
-                                    const isAvailable = await SMS.isAvailableAsync();
-                                    if (isAvailable) {
-                                        await SMS.sendSMSAsync([emergencyNumber], messageBody);
-                                    } else {
-                                        Alert.alert('Error', 'SMS composer could not be opened on this device.');
-                                    }
-                                }
-                            } catch (linkErr) {
-                                // Ultimate fallback to expo-sms if linking fails
-                                try {
-                                    await SMS.sendSMSAsync([emergencyNumber], messageBody);
-                                } catch (smsErr) {
-                                    Alert.alert('Error', 'Could not open messaging application.');
-                                }
-                            }
-                        },
-                    },
-                ]
-            );
+            // 3. Directly invoke expo-sms module which opens the native message composer prefilled with recipient and body
+            const isAvailable = await SMS.isAvailableAsync();
+            if (isAvailable) {
+                await SMS.sendSMSAsync([emergencyNumber], messageBody);
+            } else {
+                // Fallback to standard Linking if expo-sms reports unavailable
+                const separator = Platform.OS === 'ios' ? '&' : '?';
+                const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
+                const supported = await Linking.canOpenURL(smsUrl);
+                if (supported) {
+                    await Linking.openURL(smsUrl);
+                } else {
+                    Alert.alert('Error', 'SMS composer is not available on this device.');
+                }
+            }
         } catch (error) {
             setLoadingLocation(false);
             Alert.alert('GPS Error', 'Could not fetch current location. Ensure GPS/Location services are toggled on.');
@@ -194,7 +170,7 @@ export default function SOSScreen() {
                             </ThemedText>
                         </Pressable>
                         <ThemedText type="small" themeColor="textSecondary" style={styles.smsHint}>
-                            Grabs offline satellite GPS and queues an emergency text. It will dispatch the moment your phone regains cellular network signal.
+                            Grabs offline satellite GPS and opens your native messaging app prefilled with coordinates.
                         </ThemedText>
                     </View>
 
