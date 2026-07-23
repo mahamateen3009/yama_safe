@@ -3,7 +3,6 @@ import { ThemedView } from '@/components/themed-view';
 import { EMERGENCY_CONTACTS, SURVIVAL_PROTOCOLS } from '@/constants/emergencyData';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import * as SMS from 'expo-sms';
 import { useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,7 +46,7 @@ export default function SOSScreen() {
         }
     };
 
-    // Guaranteed Direct SMS & Clipboard Fallback Function
+    // Bulletproof direct URL opening function that mimics the working phone dialer
     const handleSendEmergencySMS = async () => {
         if (loadingLocation) return;
 
@@ -100,40 +99,33 @@ export default function SOSScreen() {
 
         const emergencyNumber = '01942452254';
 
-        // 1. Copy to clipboard automatically so the user never loses the message
+        // Always copy text to clipboard as safety backup
         if (navigator.clipboard && navigator.clipboard.writeText) {
             try {
                 await navigator.clipboard.writeText(messageBody);
             } catch (e) { }
         }
 
-        // 2. FORCE DIRECT SMS APP LAUNCH using native expo-sms module first
+        // Use the exact same standard URL scheme structure as phone calls (`tel:`)
+        // iOS requires a comma or semicolon/ampersand depending on version, Android requires `?body=`
+        const separator = Platform.OS === 'ios' ? '&' : '?';
+        const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
+
+        if (Platform.OS === 'web') {
+            window.location.href = smsUrl;
+            return;
+        }
+
         try {
-            const isAvailable = await SMS.isAvailableAsync();
-            if (isAvailable) {
-                await SMS.sendSMSAsync([emergencyNumber], messageBody);
-                return;
-            }
-        } catch (err) { }
-
-        // 3. Fallback: Direct URL intent launcher
-        try {
-            const separator = Platform.OS === 'ios' ? '&' : '?';
-            const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
-
-            const supported = await Linking.canOpenURL(smsUrl);
-            if (supported) {
-                await Linking.openURL(smsUrl);
-                return;
-            }
-        } catch (err) { }
-
-        // 4. Ultimate foolproof popup showing the full message if device blocks automatic app launching
-        Alert.alert(
-            'Emergency Message Ready',
-            `Your GPS coordinates have been fetched and copied to your clipboard!\n\nTarget: ${emergencyNumber}\n\nMessage:\n${messageBody}`,
-            [{ text: 'OK' }]
-        );
+            // Force open using direct Linking openURL just like the dialer
+            await Linking.openURL(smsUrl);
+        } catch (err) {
+            Alert.alert(
+                'Emergency Message Ready',
+                `Message pre-filled and copied to clipboard:\n\n${messageBody}`,
+                [{ text: 'OK' }]
+            );
+        }
     };
 
     return (
