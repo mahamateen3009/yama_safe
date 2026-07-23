@@ -117,54 +117,52 @@ export default function WildlifeListScreen() {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <View style={styles.headerContainer}>
-              {/* Header Title & Top Actions Row */}
-              <View style={styles.headerTopRow}>
-                <View style={{ flex: 1, paddingRight: 4 }}>
-                  <ThemedText type="subtitle" style={styles.title}>
-                    Yama Safe !
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-                    Your offline guardian in the high Himalayas
-                  </ThemedText>
-                </View>
+              {/* Line 1 & 2: App Name and Tagline Stacked Cleanly */}
+              <View style={styles.headerTextContainer}>
+                <ThemedText type="subtitle" style={styles.title}>
+                  Yama Safe !
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
+                  Your offline guardian in the high Himalayas
+                </ThemedText>
+              </View>
 
-                {/* Side-by-Side Compact Action Buttons (Check-In removed) */}
-                <View style={styles.headerActionsRow}>
-                  <Pressable
-                    onPress={() => router.push('/map' as any)}
-                    style={styles.mapSmallButton}
-                  >
-                    <ThemedText type="smallBold" style={styles.smallButtonText}>🗺️ Map</ThemedText>
-                  </Pressable>
+              {/* Line 3: Action Buttons Row (Map, Compass, AI, Aid, SOS) */}
+              <View style={styles.headerActionsRow}>
+                <Pressable
+                  onPress={() => router.push('/map' as any)}
+                  style={styles.mapSmallButton}
+                >
+                  <ThemedText type="smallBold" style={styles.smallButtonText}>🗺️ Map</ThemedText>
+                </Pressable>
 
-                  <Pressable
-                    onPress={() => router.push('/trail-navigator' as any)}
-                    style={styles.compassSmallButton}
-                  >
-                    <ThemedText type="smallBold" style={styles.smallButtonText}>🧭 Compass</ThemedText>
-                  </Pressable>
+                <Pressable
+                  onPress={() => router.push('/trail-navigator' as any)}
+                  style={styles.compassSmallButton}
+                >
+                  <ThemedText type="smallBold" style={styles.smallButtonText}>🧭 Compass</ThemedText>
+                </Pressable>
 
-                  <Pressable
-                    onPress={() => router.push('/audio-detector' as any)}
-                    style={styles.audioAiButton}
-                  >
-                    <ThemedText type="smallBold" style={styles.smallButtonText}>🎙️ AI</ThemedText>
-                  </Pressable>
+                <Pressable
+                  onPress={() => router.push('/audio-detector' as any)}
+                  style={styles.audioAiButton}
+                >
+                  <ThemedText type="smallBold" style={styles.smallButtonText}>🎙️ AI</ThemedText>
+                </Pressable>
 
-                  <Pressable
-                    onPress={() => router.push('/first-aid' as any)}
-                    style={styles.firstAidSmallButton}
-                  >
-                    <ThemedText type="smallBold" style={styles.smallButtonText}>🩹 Aid</ThemedText>
-                  </Pressable>
+                <Pressable
+                  onPress={() => router.push('/first-aid' as any)}
+                  style={styles.firstAidSmallButton}
+                >
+                  <ThemedText type="smallBold" style={styles.smallButtonText}>🩹 Aid</ThemedText>
+                </Pressable>
 
-                  <Pressable
-                    onPress={() => router.push('/sos' as any)}
-                    style={styles.sosButton}
-                  >
-                    <ThemedText type="smallBold" style={styles.smallButtonText}>🚨 SOS</ThemedText>
-                  </Pressable>
-                </View>
+                <Pressable
+                  onPress={() => router.push('/sos' as any)}
+                  style={styles.sosButton}
+                >
+                  <ThemedText type="smallBold" style={styles.smallButtonText}>🚨 SOS</ThemedText>
+                </Pressable>
               </View>
 
               {/* Battery & Power Mode Selector Bar */}
@@ -344,11 +342,9 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.three,
     marginBottom: Spacing.two,
   },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.two,
+  headerTextContainer: {
+    width: '100%',
+    marginBottom: Spacing.two, // Separates title/tagline clearly from line 3 actions
   },
   title: {
     fontSize: 26,
@@ -360,52 +356,59 @@ const styles = StyleSheet.create({
   },
   headerActionsRow: {
     flexDirection: 'row',
-    gap: 4,
+    flexWrap: 'wrap', // Allows buttons to fit nicely on narrow mobile screens without breaking bounds
+    gap: 6,
     alignItems: 'center',
+    marginBottom: Spacing.three,
   },
   sosButton: {
     backgroundColor: '#dc2626',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexGrow: 1,
   },
   firstAidSmallButton: {
     backgroundColor: '#0275d8',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexGrow: 1,
   },
   audioAiButton: {
     backgroundColor: '#7c3aed',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexGrow: 1,
   },
   compassSmallButton: {
     backgroundColor: '#059669',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexGrow: 1,
   },
   mapSmallButton: {
     backgroundColor: '#0284c7',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    flexGrow: 1,
   },
   smallButtonText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 11,
   },
   powerCard: {
     padding: 12,
