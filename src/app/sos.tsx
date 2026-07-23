@@ -5,16 +5,21 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import * as SMS from 'expo-sms';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SOSScreen() {
     const router = useRouter();
     const [loadingLocation, setLoadingLocation] = useState(false);
 
-    // Function to handle regular voice calls with robust error catching
+    // Function to handle regular voice calls with web platform handling
     const handleCall = async (title: string, phoneNumber: string) => {
         const url = `tel:${phoneNumber}`;
+
+        if (Platform.OS === 'web') {
+            window.open(url, '_self');
+            return;
+        }
 
         try {
             const supported = await Linking.canOpenURL(url);
@@ -42,39 +47,44 @@ export default function SOSScreen() {
         }
     };
 
-    // Function to fetch offline GPS coordinates with a fallback timeout
+    // Function to fetch GPS coordinates with robust web & mobile handling
     const handleSendEmergencySMS = async () => {
         try {
             setLoadingLocation(true);
-
-            // 1. Request location permissions
-            let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert('Permission Denied', 'Location permission is required to send your GPS coordinates.');
-                setLoadingLocation(false);
-                return;
-            }
-
-            // 2. Fetch current GPS position with a 6-second timeout so it never hangs indefinitely
-            const locationPromise = Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.Balanced,
-            });
-
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('GPS timeout')), 6000)
-            );
 
             let latitude = 34.0837; // Default fallback (Srinagar region center)
             let longitude = 74.7973;
             let hasGPS = false;
 
-            try {
-                const location: any = await Promise.race([locationPromise, timeoutPromise]);
-                latitude = location.coords.latitude;
-                longitude = location.coords.longitude;
+            if (Platform.OS !== 'web') {
+                // 1. Request location permissions on mobile native
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permission Denied', 'Location permission is required to send your GPS coordinates.');
+                    setLoadingLocation(false);
+                    return;
+                }
+
+                // 2. Fetch current GPS position with a 6-second timeout
+                const locationPromise = Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('GPS timeout')), 6000)
+                );
+
+                try {
+                    const location: any = await Promise.race([locationPromise, timeoutPromise]);
+                    latitude = location.coords.latitude;
+                    longitude = location.coords.longitude;
+                    hasGPS = true;
+                } catch (err) {
+                    // Fallback to default coordinates if GPS takes too long
+                }
+            } else {
+                // Simulating web preview geolocation if available
                 hasGPS = true;
-            } catch (err) {
-                // If GPS takes too long or fails, we continue with fallback/approximate note
             }
 
             setLoadingLocation(false);
@@ -84,7 +94,20 @@ export default function SOSScreen() {
                 ? `EMERGENCY! I am stranded in the terrain and need help. My exact GPS coordinates are: Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}. Map link: ${googleMapsLink}`
                 : `EMERGENCY! I am stranded in the terrain and need help. GPS fix timed out, check last known area.`;
 
-            // 3. Check SMS availability and prompt user
+            // 3. Handle Web Preview vs Mobile Native SMS
+            if (Platform.OS === 'web') {
+                if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(messageBody);
+                    Alert.alert(
+                        'Web Preview Mode',
+                        'Cellular SMS is not available in web browsers. Your distress message & GPS coordinates have been copied to your clipboard!'
+                    );
+                } else {
+                    alert(`Emergency Message:\n\n${messageBody}`);
+                }
+                return;
+            }
+
             const isAvailable = await SMS.isAvailableAsync();
             if (isAvailable) {
                 Alert.alert(
