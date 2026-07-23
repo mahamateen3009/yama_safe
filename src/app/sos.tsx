@@ -47,7 +47,7 @@ export default function SOSScreen() {
         }
     };
 
-    // Function to fetch GPS coordinates with robust web & mobile handling
+    // Function to fetch GPS coordinates and open native SMS composer pre-filled
     const handleSendEmergencySMS = async () => {
         try {
             setLoadingLocation(true);
@@ -84,7 +84,16 @@ export default function SOSScreen() {
                 }
             } else {
                 // Simulating web preview geolocation if available
-                hasGPS = true;
+                if (navigator.geolocation) {
+                    try {
+                        const pos: any = await new Promise((resolve, reject) =>
+                            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+                        );
+                        latitude = pos.coords.latitude;
+                        longitude = pos.coords.longitude;
+                        hasGPS = true;
+                    } catch (e) { }
+                }
             }
 
             setLoadingLocation(false);
@@ -94,39 +103,39 @@ export default function SOSScreen() {
                 ? `EMERGENCY! I am stranded in the terrain and need help. My exact GPS coordinates are: Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}. Map link: ${googleMapsLink}`
                 : `EMERGENCY! I am stranded in the terrain and need help. GPS fix timed out, check last known area.`;
 
-            // 3. Handle Web Preview vs Mobile Native SMS
-            if (Platform.OS === 'web') {
-                if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(messageBody);
-                    Alert.alert(
-                        'Web Preview Mode',
-                        'Cellular SMS is not available in web browsers. Your distress message & GPS coordinates have been copied to your clipboard!'
-                    );
-                } else {
-                    alert(`Emergency Message:\n\n${messageBody}`);
-                }
-                return;
-            }
+            const emergencyNumber = '01942452254';
+            const separator = Platform.OS === 'ios' ? '&' : '?';
+            const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
 
-            const isAvailable = await SMS.isAvailableAsync();
-            if (isAvailable) {
-                Alert.alert(
-                    'Send Emergency SMS',
-                    '112 is a voice-only helpline and cannot receive texts. Do you want to send your location text to the wildlife/emergency contact number (01942452254)?',
-                    [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                            text: 'Send SMS',
-                            style: 'destructive',
-                            onPress: async () => {
-                                await SMS.sendSMSAsync(['01942452254'], messageBody);
-                            },
+            // 3. Prompt user and open pre-filled SMS composer just like the phone dialer
+            Alert.alert(
+                'Send Emergency SMS',
+                '112 is a voice-only helpline and cannot receive texts. Do you want to open your messaging app pre-filled with your coordinates for the wildlife control room (01942452254)?',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                        text: 'Open SMS App',
+                        style: 'destructive',
+                        onPress: async () => {
+                            if (Platform.OS === 'web') {
+                                window.location.href = smsUrl;
+                            } else {
+                                const supported = await Linking.canOpenURL(smsUrl);
+                                if (supported) {
+                                    await Linking.openURL(smsUrl);
+                                } else {
+                                    const isAvailable = await SMS.isAvailableAsync();
+                                    if (isAvailable) {
+                                        await SMS.sendSMSAsync([emergencyNumber], messageBody);
+                                    } else {
+                                        Alert.alert('Error', 'SMS composer could not be opened on this device.');
+                                    }
+                                }
+                            }
                         },
-                    ]
-                );
-            } else {
-                Alert.alert('Error', 'SMS service is not available on this device.');
-            }
+                    },
+                ]
+            );
         } catch (error) {
             setLoadingLocation(false);
             Alert.alert('GPS Error', 'Could not fetch current location. Ensure GPS/Location services are toggled on.');
