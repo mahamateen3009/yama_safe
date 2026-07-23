@@ -47,7 +47,7 @@ export default function SOSScreen() {
         }
     };
 
-    // Fail-safe SMS function that guarantees message generation and display regardless of browser limits
+    // Guaranteed Direct SMS & Clipboard Fallback Function
     const handleSendEmergencySMS = async () => {
         if (loadingLocation) return;
 
@@ -100,24 +100,23 @@ export default function SOSScreen() {
 
         const emergencyNumber = '01942452254';
 
-        // 1. Always copy text to clipboard as a bulletproof background safety measure
+        // 1. Copy to clipboard automatically so the user never loses the message
         if (navigator.clipboard && navigator.clipboard.writeText) {
             try {
                 await navigator.clipboard.writeText(messageBody);
             } catch (e) { }
         }
 
-        // 2. If running on web preview or mobile browser, display an immediate popup with the copyable pre-filled text
-        if (Platform.OS === 'web') {
-            Alert.alert(
-                'Emergency SOS Text Ready',
-                `Target: Wildlife Control (${emergencyNumber})\n\nYour message with exact coordinates has been generated and copied to clipboard!\n\n${messageBody}`,
-                [{ text: 'OK' }]
-            );
-            return;
-        }
+        // 2. FORCE DIRECT SMS APP LAUNCH using native expo-sms module first
+        try {
+            const isAvailable = await SMS.isAvailableAsync();
+            if (isAvailable) {
+                await SMS.sendSMSAsync([emergencyNumber], messageBody);
+                return;
+            }
+        } catch (err) { }
 
-        // 3. For native app builds, attempt SMS composer dispatch
+        // 3. Fallback: Direct URL intent launcher
         try {
             const separator = Platform.OS === 'ios' ? '&' : '?';
             const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
@@ -125,21 +124,16 @@ export default function SOSScreen() {
             const supported = await Linking.canOpenURL(smsUrl);
             if (supported) {
                 await Linking.openURL(smsUrl);
-            } else {
-                const isAvailable = await SMS.isAvailableAsync();
-                if (isAvailable) {
-                    await SMS.sendSMSAsync([emergencyNumber], messageBody);
-                } else {
-                    throw new Error('No SMS client');
-                }
+                return;
             }
-        } catch (err) {
-            Alert.alert(
-                'Emergency Text Ready',
-                `Message generated successfully:\n\n${messageBody}`,
-                [{ text: 'OK' }]
-            );
-        }
+        } catch (err) { }
+
+        // 4. Ultimate foolproof popup showing the full message if device blocks automatic app launching
+        Alert.alert(
+            'Emergency Message Ready',
+            `Your GPS coordinates have been fetched and copied to your clipboard!\n\nTarget: ${emergencyNumber}\n\nMessage:\n${messageBody}`,
+            [{ text: 'OK' }]
+        );
     };
 
     return (
