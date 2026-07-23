@@ -47,7 +47,7 @@ export default function SOSScreen() {
         }
     };
 
-    // Function to fetch GPS coordinates and open native SMS app prefilled via expo-sms
+    // Function to fetch GPS coordinates and open SMS composer seamlessly across web and mobile
     const handleSendEmergencySMS = async () => {
         if (loadingLocation) return;
 
@@ -59,7 +59,6 @@ export default function SOSScreen() {
             let hasGPS = false;
 
             if (Platform.OS !== 'web') {
-                // 1. Request foreground location permissions
                 let { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== 'granted') {
                     Alert.alert('Permission Denied', 'Location permission is required to send your GPS coordinates.');
@@ -67,7 +66,6 @@ export default function SOSScreen() {
                     return;
                 }
 
-                // 2. Fetch current GPS position with a 4-second timeout to prevent hanging
                 const locationPromise = Location.getCurrentPositionAsync({
                     accuracy: Location.Accuracy.Balanced,
                 });
@@ -81,9 +79,7 @@ export default function SOSScreen() {
                     latitude = location.coords.latitude;
                     longitude = location.coords.longitude;
                     hasGPS = true;
-                } catch (err) {
-                    // Fallback to default coordinates if GPS takes too long
-                }
+                } catch (err) { }
             } else {
                 if (navigator.geolocation) {
                     try {
@@ -104,36 +100,37 @@ export default function SOSScreen() {
 
             const emergencyNumber = '01942452254';
 
-            // Reset loading state immediately before presenting UI actions
+            // Reset loading state right before opening app/clipboard
             setLoadingLocation(false);
 
-            // Web preview clipboard handler fallback
+            // Universal URI format that works like 'tel:' in mobile browsers
+            const separator = Platform.OS === 'ios' ? '&' : '?';
+            const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
+
             if (Platform.OS === 'web') {
+                // On mobile browsers or desktop browsers, use direct location redirect or clipboard fallback
+                // This mimics how window.open works for 'tel:' links
+                window.location.href = smsUrl;
+
+                // Also copy to clipboard just in case the browser blocks the SMS intent
                 if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(messageBody);
-                    Alert.alert(
-                        'Web Preview Mode (SMS Copied)',
-                        `Browsers cannot launch SMS apps. Your distress text for ${emergencyNumber} has been copied to your clipboard!`
-                    );
-                } else {
-                    alert(`Emergency Message:\n\n${messageBody}`);
+                    try {
+                        await navigator.clipboard.writeText(messageBody);
+                    } catch (e) { }
                 }
                 return;
             }
 
-            // 3. Directly invoke expo-sms module which opens the native message composer prefilled with recipient and body
-            const isAvailable = await SMS.isAvailableAsync();
-            if (isAvailable) {
-                await SMS.sendSMSAsync([emergencyNumber], messageBody);
+            // Native mobile app handling
+            const supported = await Linking.canOpenURL(smsUrl);
+            if (supported) {
+                await Linking.openURL(smsUrl);
             } else {
-                // Fallback to standard Linking if expo-sms reports unavailable
-                const separator = Platform.OS === 'ios' ? '&' : '?';
-                const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
-                const supported = await Linking.canOpenURL(smsUrl);
-                if (supported) {
-                    await Linking.openURL(smsUrl);
+                const isAvailable = await SMS.isAvailableAsync();
+                if (isAvailable) {
+                    await SMS.sendSMSAsync([emergencyNumber], messageBody);
                 } else {
-                    Alert.alert('Error', 'SMS composer is not available on this device.');
+                    Alert.alert('Error', 'SMS composer could not be opened on this device.');
                 }
             }
         } catch (error) {
@@ -170,7 +167,7 @@ export default function SOSScreen() {
                             </ThemedText>
                         </Pressable>
                         <ThemedText type="small" themeColor="textSecondary" style={styles.smsHint}>
-                            Grabs offline satellite GPS and opens your native messaging app prefilled with coordinates.
+                            Grabs offline satellite GPS and opens your messaging app prefilled with coordinates.
                         </ThemedText>
                     </View>
 
