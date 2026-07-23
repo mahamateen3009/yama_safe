@@ -47,7 +47,7 @@ export default function SOSScreen() {
         }
     };
 
-    // Function to fetch GPS coordinates and open native SMS composer pre-filled
+    // Function to fetch GPS coordinates and trigger SMS/Clipboard fallback
     const handleSendEmergencySMS = async () => {
         try {
             setLoadingLocation(true);
@@ -104,10 +104,25 @@ export default function SOSScreen() {
                 : `EMERGENCY! I am stranded in the terrain and need help. GPS fix timed out, check last known area.`;
 
             const emergencyNumber = '01942452254';
+
+            // If running on web preview, directly copy to clipboard since browsers block sms: URIs
+            if (Platform.OS === 'web') {
+                if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(messageBody);
+                    Alert.alert(
+                        'Web Preview Mode (SMS Copied)',
+                        `Browsers cannot send direct cellular texts. Your distress text for ${emergencyNumber} has been copied to your clipboard!`
+                    );
+                } else {
+                    alert(`Emergency Message:\n\n${messageBody}`);
+                }
+                return;
+            }
+
             const separator = Platform.OS === 'ios' ? '&' : '?';
             const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
 
-            // 3. Prompt user and open pre-filled SMS composer just like the phone dialer
+            // 3. Prompt user and open pre-filled SMS composer on native mobile
             Alert.alert(
                 'Send Emergency SMS',
                 '112 is a voice-only helpline and cannot receive texts. Do you want to open your messaging app pre-filled with your coordinates for the wildlife control room (01942452254)?',
@@ -117,19 +132,15 @@ export default function SOSScreen() {
                         text: 'Open SMS App',
                         style: 'destructive',
                         onPress: async () => {
-                            if (Platform.OS === 'web') {
-                                window.location.href = smsUrl;
+                            const supported = await Linking.canOpenURL(smsUrl);
+                            if (supported) {
+                                await Linking.openURL(smsUrl);
                             } else {
-                                const supported = await Linking.canOpenURL(smsUrl);
-                                if (supported) {
-                                    await Linking.openURL(smsUrl);
+                                const isAvailable = await SMS.isAvailableAsync();
+                                if (isAvailable) {
+                                    await SMS.sendSMSAsync([emergencyNumber], messageBody);
                                 } else {
-                                    const isAvailable = await SMS.isAvailableAsync();
-                                    if (isAvailable) {
-                                        await SMS.sendSMSAsync([emergencyNumber], messageBody);
-                                    } else {
-                                        Alert.alert('Error', 'SMS composer could not be opened on this device.');
-                                    }
+                                    Alert.alert('Error', 'SMS composer could not be opened on this device.');
                                 }
                             }
                         },
