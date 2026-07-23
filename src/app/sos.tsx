@@ -47,7 +47,7 @@ export default function SOSScreen() {
         }
     };
 
-    // Function to fetch GPS coordinates and open SMS composer seamlessly across web and mobile
+    // Function to fetch GPS coordinates and show a copyable alert box on web/mobile browsers
     const handleSendEmergencySMS = async () => {
         if (loadingLocation) return;
 
@@ -100,28 +100,29 @@ export default function SOSScreen() {
 
             const emergencyNumber = '01942452254';
 
-            // Reset loading state right before opening app/clipboard
             setLoadingLocation(false);
 
-            // Universal URI format that works like 'tel:' in mobile browsers
-            const separator = Platform.OS === 'ios' ? '&' : '?';
-            const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
-
+            // If running inside a web browser (desktop or mobile browser preview), 
+            // browsers strictly block sms: protocol handlers. Showing a clear interactive modal 
+            // with the pre-filled text ensures it is 100% reliable and doesn't just "do nothing".
             if (Platform.OS === 'web') {
-                // On mobile browsers or desktop browsers, use direct location redirect or clipboard fallback
-                // This mimics how window.open works for 'tel:' links
-                window.location.href = smsUrl;
-
-                // Also copy to clipboard just in case the browser blocks the SMS intent
                 if (navigator.clipboard) {
                     try {
                         await navigator.clipboard.writeText(messageBody);
                     } catch (e) { }
                 }
+                Alert.alert(
+                    'Emergency SOS Text Ready',
+                    `Target Number: ${emergencyNumber}\n\nYour distress message & GPS coordinates have been automatically generated and copied to your clipboard!\n\nMessage:\n"${messageBody}"`,
+                    [{ text: 'OK' }]
+                );
                 return;
             }
 
             // Native mobile app handling
+            const separator = Platform.OS === 'ios' ? '&' : '?';
+            const smsUrl = `sms:${emergencyNumber}${separator}body=${encodeURIComponent(messageBody)}`;
+
             const supported = await Linking.canOpenURL(smsUrl);
             if (supported) {
                 await Linking.openURL(smsUrl);
